@@ -17,6 +17,7 @@ YouTube video:
 https://www.youtube.com/watch?v=TIiCQfWdtVg
 
 v5.1 updated 9/7/26
+
 App has been updated to properly request the "All Files Access" permission so that your MEDIA partition is now accessible and accounted for.
 1. targetSdkVersion 30 → 34 (Play policy lint)
 2. SelectActivity — added android:exported="true" (required at targetSdk 31+)
