@@ -3,7 +3,7 @@
     package="com.google.android.diskusage"
     android:installLocation="auto"
     android:versionCode="5100"
-    android:versionName="v5.1">
+    android:versionName="5.1">
 
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
