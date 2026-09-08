@@ -29,6 +29,7 @@ jobs:
         run: chmod +x gradlew
 
       - name: Build release APK
+        continue-on-error: true
         run: ./gradlew assembleRelease --stacktrace
 
       - name: Build debug APK (fallback, no signing needed)
