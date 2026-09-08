@@ -97,7 +97,7 @@ public class PermissionRequestActivity extends Activity {
             setResult(0, data);
             finish();
         } else if (requestCode == PERMISSION_REQUEST_USAGE_ACCESS_CODE) {
-            forwardToDiskUsage();
+            checkStorageThenForward();
         } else if (requestCode == PERMISSION_REQUEST_EXTERNAL_STORAGE_CODE) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                 if (Environment.isExternalStorageManager()) {
