@@ -64,22 +64,21 @@ public class PermissionRequestActivity extends Activity {
             finish();
             return;
         }
-        if ((!mountPoint.hasApps()) || isAccessGranted()) {
-            forwardToDiskUsage();
+
+        if (mountPoint.hasApps() && !isAccessGranted()) {
+            new AlertDialog.Builder(this)
+                    .setTitle(R.string.dialog_usage_access_title)
+                    .setMessage(R.string.dialog_usage_access_desc)
+                    .setPositiveButton(android.R.string.ok, (dialogInterface, i1) -> {
+                        Intent intent = new Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS);
+                        startActivityForResult(intent, PERMISSION_REQUEST_USAGE_ACCESS_CODE);
+                    })
+                    .setNegativeButton(android.R.string.cancel, (dialogInterface, i12) ->
+                            checkStorageThenForward()).create().show();
             return;
         }
 
-        new AlertDialog.Builder(this)
-                .setTitle(R.string.dialog_usage_access_title)
-                .setMessage(R.string.dialog_usage_access_desc)
-                .setPositiveButton(android.R.string.ok, (dialogInterface, i1) -> {
-                    Intent intent = new Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS);
-                    startActivityForResult(intent, PERMISSION_REQUEST_USAGE_ACCESS_CODE);
-                })
-                .setNegativeButton(android.R.string.cancel, (dialogInterface, i12) ->
-                        forwardToDiskUsage()).create().show();
-
-        requestExternalStoragePermission();
+        checkStorageThenForward();
     }
 
     public void forwardToDiskUsage() {
@@ -106,6 +105,19 @@ public class PermissionRequestActivity extends Activity {
                     ToastKt.toast(R.string.dialog_external_storage_access_error);
                 }
             }
+        }
+    }
+
+    private void checkStorageThenForward() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R
+                ? Environment.isExternalStorageManager()
+                : (checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE)
+                        == PackageManager.PERMISSION_GRANTED
+                    && checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                        == PackageManager.PERMISSION_GRANTED)) {
+            forwardToDiskUsage();
+        } else {
+            requestExternalStoragePermission();
         }
     }
 
