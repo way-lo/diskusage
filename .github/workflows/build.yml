@@ -1,7 +1,15 @@
 name: Build APK
 
+run-name: >-
+  ${{ github.event_name == 'workflow_dispatch' && (inputs.note != '' && inputs.note || 'Manual build') || format('Build: {0}', github.event.head_commit.message) }}
+
 on:
   workflow_dispatch:      # lets you trigger it manually from the Actions tab
+    inputs:
+      note:
+        description: 'Note for this run (shows as the run name)'
+        required: false
+        default: ''
   push:
     branches: [ master ]  # also builds automatically on every push to master
 
