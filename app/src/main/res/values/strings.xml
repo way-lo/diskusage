@@ -31,6 +31,7 @@
 <string name="title_in_oi_file_manager">Solid Explorer</string>
 <string name="button_text_in_oi_file_manager">Return to DiskUsage</string>
 <string name="no_viewer_found">No viewer found</string>
+<string name="title_choose_file_manager">Open folder with</string>
 <string name="ask_to_delete_directory">Delete %s directory?</string>
 <string name="ask_to_delete_file">Delete %s file?</string>
 <string name="out_of_memory">Not enough memory!</string>
