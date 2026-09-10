@@ -290,7 +290,7 @@ public class DiskUsage extends LoadableActivity {
       try {
         Intent folderIntent = buildDocumentTreeViewIntent(file);
         if (folderIntent != null) {
-          startActivity(Intent.createChooser(folderIntent, getString(R.string.title_choose_file_manager)));
+          startActivity(folderIntent);
           return;
         }
       } catch (Exception e) {
@@ -329,14 +329,16 @@ public class DiskUsage extends LoadableActivity {
   }
 
   /**
-   * Builds an ACTION_VIEW intent pointing at the real Storage Access Framework
-   * document URI for the given directory (e.g.
-   * content://com.android.externalstorage.documents/document/primary:Download),
-   * which is the URI scheme modern file managers (Files by Google, Solid
-   * Explorer, MiXplorer, etc.) actually register intent-filters for. This
-   * replaces the old inode/directory + OpenIntents + Astro fallback chain,
-   * which is a dead convention on modern Android and only matches unrelated
-   * apps with overly broad intent-filters.
+   * Builds an ACTION_OPEN_DOCUMENT_TREE intent pre-pointed at the given
+   * directory via EXTRA_INITIAL_URI.
+   *
+   * Note: we deliberately do NOT put the document URI in the intent's data.
+   * Android checks intent data URIs against the caller's URI grants at
+   * startActivity() time, and MANAGE_EXTERNAL_STORAGE grants raw filesystem
+   * access but no grant on com.android.externalstorage.documents content URIs
+   * — so passing it as data throws SecurityException. EXTRA_INITIAL_URI is an
+   * extra, which is not permission-checked, and is the supported way to open
+   * a picker at a specific folder.
    *
    * Returns null if we can't confidently resolve the volume/relative path
    * (e.g. below API 30, where StorageVolume.getDirectory() isn't available),
@@ -373,9 +375,8 @@ public class DiskUsage extends LoadableActivity {
     String docId = relativePath.isEmpty() ? (volumeId + ":") : (volumeId + ":" + relativePath);
     Uri treeUri = DocumentsContract.buildDocumentUri("com.android.externalstorage.documents", docId);
 
-    Intent intent = new Intent(Intent.ACTION_VIEW);
-    intent.setDataAndType(treeUri, DocumentsContract.Document.MIME_TYPE_DIR);
-    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+    Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
+    intent.putExtra(DocumentsContract.EXTRA_INITIAL_URI, treeUri);
     return intent;
   }
 
