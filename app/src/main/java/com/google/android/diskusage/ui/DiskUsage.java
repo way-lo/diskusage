@@ -280,11 +280,6 @@ public class DiskUsage extends LoadableActivity {
 
     String path = entry.absolutePath();
     File file = new File(path);
-    Uri uri = Uri.fromFile(file);
-
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-      uri = FileProvider.getUriForFile(this, BuildConfig.APPLICATION_ID + ".provider", file);
-    }
 
     if (file.isDirectory()) {
       try {
@@ -298,6 +293,16 @@ public class DiskUsage extends LoadableActivity {
       }
       ToastKt.toast(R.string.no_viewer_found);
       return;
+    }
+
+    // Only files get a FileProvider URI. Calling getUriForFile() on a
+    // directory that IS the configured provider root (e.g. /storage/emulated/0,
+    // which is what the "Media" node maps to) throws
+    // StringIndexOutOfBoundsException inside SimplePathStrategy, so this must
+    // stay below the isDirectory() branch above.
+    Uri uri = Uri.fromFile(file);
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+      uri = FileProvider.getUriForFile(this, BuildConfig.APPLICATION_ID + ".provider", file);
     }
 
     String fileName = entry.name;
