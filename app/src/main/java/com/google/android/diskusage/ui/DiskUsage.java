@@ -610,7 +610,7 @@ public class DiskUsage extends LoadableActivity {
   }
 
   void moveAppData(@NonNull FileSystemEntry[] apps, FileSystemRoot media, long blockSize) {
-    String diskusage = "com.google.android.diskusage";
+    String diskusage = getPackageName();
     for (FileSystemEntry a : apps) {
       FileSystemPackage app = (FileSystemPackage)  a;
       try {
