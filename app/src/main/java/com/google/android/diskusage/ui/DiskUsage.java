@@ -287,13 +287,14 @@ public class DiskUsage extends LoadableActivity {
     }
 
     if (file.isDirectory()) {
-      Intent folderIntent = buildDocumentTreeViewIntent(file);
-      if (folderIntent != null) {
-        try {
+      try {
+        Intent folderIntent = buildDocumentTreeViewIntent(file);
+        if (folderIntent != null) {
           startActivity(Intent.createChooser(folderIntent, getString(R.string.title_choose_file_manager)));
           return;
-        } catch (ActivityNotFoundException ignored) {
         }
+      } catch (Exception e) {
+        Timber.e(e, "Failed to open folder externally: %s", path);
       }
       ToastKt.toast(R.string.no_viewer_found);
       return;
@@ -374,7 +375,7 @@ public class DiskUsage extends LoadableActivity {
 
     Intent intent = new Intent(Intent.ACTION_VIEW);
     intent.setDataAndType(treeUri, DocumentsContract.Document.MIME_TYPE_DIR);
-    intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
+    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
     return intent;
   }
 
