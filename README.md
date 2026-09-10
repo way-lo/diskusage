@@ -1,8 +1,7 @@
 DiskUsage
 =========
 
-For a better maintained version of this project have a look at:
-https://github.com/WhiredPlanck/diskusage
+This is a forked version of DiskUsage from https://github.com/WhiredPlanck/diskusage
 
 DiskUsage app for Android
 
