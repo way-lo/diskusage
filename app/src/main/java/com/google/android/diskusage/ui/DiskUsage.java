@@ -29,8 +29,12 @@ import android.content.pm.PackageManager.NameNotFoundException;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Environment;
 import android.os.FileUriExposedException;
 import android.os.Handler;
+import android.os.storage.StorageManager;
+import android.os.storage.StorageVolume;
+import android.provider.DocumentsContract;
 import android.provider.Settings;
 import androidx.annotation.NonNull;
 import androidx.core.content.FileProvider;
@@ -283,54 +287,14 @@ public class DiskUsage extends LoadableActivity {
     }
 
     if (file.isDirectory()) {
-      // Go on with default file manager
-      // Shoud this be optional?
-      intent = new Intent(Intent.ACTION_VIEW);
-      intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-      intent.setDataAndType(uri, "inode/directory");
-
-      try {
-        startActivity(intent);
-        return;
-      } catch (ActivityNotFoundException ignored) {
+      Intent folderIntent = buildDocumentTreeViewIntent(file);
+      if (folderIntent != null) {
+        try {
+          startActivity(Intent.createChooser(folderIntent, getString(R.string.title_choose_file_manager)));
+          return;
+        } catch (ActivityNotFoundException ignored) {
+        }
       }
-
-      intent = new Intent("org.openintents.action.VIEW_DIRECTORY");
-      intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-      intent.setData(uri);
-
-      try {
-        startActivity(intent);
-        return;
-      } catch (ActivityNotFoundException|FileUriExposedException ignored) {
-      }
-
-      intent = new Intent("org.openintents.action.PICK_DIRECTORY");
-      intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-      intent.setData(uri);
-      intent.putExtra("org.openintents.extra.TITLE",
-          getString(R.string.title_in_oi_file_manager));
-      intent.putExtra("org.openintents.extra.BUTTON_TEXT",
-          getString(R.string.button_text_in_oi_file_manager));
-
-      try {
-        startActivity(intent);
-        return;
-      } catch (ActivityNotFoundException|FileUriExposedException ignored) {
-      }
-
-      // old Astro
-      intent = new Intent(Intent.ACTION_VIEW);
-      intent.addCategory(Intent.CATEGORY_DEFAULT);
-      intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-      intent.setDataAndType(uri, "vnd.android.cursor.item/com.metago.filemanager.dir");
-
-      try {
-        startActivity(intent);
-        return;
-      } catch (ActivityNotFoundException|FileUriExposedException ignored) {
-      }
-
       ToastKt.toast(R.string.no_viewer_found);
       return;
     }
@@ -361,6 +325,57 @@ public class DiskUsage extends LoadableActivity {
       }
     }
     ToastKt.toast(R.string.no_viewer_found);
+  }
+
+  /**
+   * Builds an ACTION_VIEW intent pointing at the real Storage Access Framework
+   * document URI for the given directory (e.g.
+   * content://com.android.externalstorage.documents/document/primary:Download),
+   * which is the URI scheme modern file managers (Files by Google, Solid
+   * Explorer, MiXplorer, etc.) actually register intent-filters for. This
+   * replaces the old inode/directory + OpenIntents + Astro fallback chain,
+   * which is a dead convention on modern Android and only matches unrelated
+   * apps with overly broad intent-filters.
+   *
+   * Returns null if we can't confidently resolve the volume/relative path
+   * (e.g. below API 30, where StorageVolume.getDirectory() isn't available),
+   * in which case the caller should fall back to the "no viewer" message.
+   */
+  private Intent buildDocumentTreeViewIntent(File file) {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+      // StorageVolume.getDirectory() needed below is only public from API 30+.
+      return null;
+    }
+    StorageManager storageManager = (StorageManager) getSystemService(Context.STORAGE_SERVICE);
+    StorageVolume volume = storageManager.getStorageVolume(file);
+    if (volume == null) {
+      return null;
+    }
+    File volumeRoot = volume.getDirectory();
+    if (volumeRoot == null) {
+      return null;
+    }
+    String volumeId = volume.isPrimary() ? "primary" : volume.getUuid();
+    if (volumeId == null) {
+      return null;
+    }
+
+    String relativePath;
+    try {
+      String rootPath = volumeRoot.getCanonicalPath();
+      String filePath = file.getCanonicalPath();
+      relativePath = filePath.equals(rootPath) ? "" : filePath.substring(rootPath.length() + 1);
+    } catch (IOException e) {
+      return null;
+    }
+
+    String docId = relativePath.isEmpty() ? (volumeId + ":") : (volumeId + ":" + relativePath);
+    Uri treeUri = DocumentsContract.buildDocumentUri("com.android.externalstorage.documents", docId);
+
+    Intent intent = new Intent(Intent.ACTION_VIEW);
+    intent.setDataAndType(treeUri, DocumentsContract.Document.MIME_TYPE_DIR);
+    intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
+    return intent;
   }
 
   public void rescan() {
