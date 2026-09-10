@@ -3,6 +3,8 @@ DiskUsage
 
 This is a forked version of DiskUsage from https://github.com/WhiredPlanck/diskusage
 
+This updated version now theoretically works for Android 11+, when scoped storage became mandatory.  Tested on Android 14.
+
 DiskUsage app for Android
 
 DiskUsage provides a way to find files and directories on storage card which consumes a lot of space.<br>
