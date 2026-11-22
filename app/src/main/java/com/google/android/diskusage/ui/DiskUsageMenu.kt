@@ -172,6 +172,10 @@ class DiskUsageMenu(val diskusage: DiskUsage) {
 
         menu.forEach { it.isVisible = false }
 
+        menu.item(R.string.menu_reset_folder_app) {
+            diskusage.resetFolderApp()
+        }
+
         menu.item(R.string.action_about) {
             val binding =
                 AboutDialogBinding.inflate(

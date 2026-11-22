@@ -21,10 +21,12 @@ package com.google.android.diskusage.ui;
 
 import android.app.ActivityManager;
 import android.app.AlertDialog;
+import android.app.PendingIntent;
 import android.content.ActivityNotFoundException;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.content.pm.PackageManager.NameNotFoundException;
 import android.content.pm.ActivityInfo;
@@ -290,6 +292,11 @@ public class DiskUsage extends LoadableActivity {
 
     if (file.isDirectory()) {
       Uri documentUri = buildDocumentUri(file);
+      // An app picked earlier in the chooser opens directly (DiskUsage's own
+      // stand-in for Android's "Always", which app-built choosers can't offer).
+      if (openRememberedFolderApp(file, documentUri)) {
+        return;
+      }
       // If a path-based file manager (e.g. MiXplorer) is installed, offer it
       // alongside the Files app in one chooser.
       if (openFolderChooser(file, documentUri)) {
@@ -379,8 +386,7 @@ public class DiskUsage extends LoadableActivity {
     PackageManager pm = getPackageManager();
     Set<String> seenPackages = new HashSet<>();
 
-    Intent pathIntent = new Intent(Intent.ACTION_VIEW,
-        Uri.parse("folder://" + Uri.encode(folder.getAbsolutePath(), "/")));
+    Intent pathIntent = new Intent(Intent.ACTION_VIEW, folderPathUri(folder));
     List<Intent> pathTargets = explicitTargets(pm, pathIntent, seenPackages);
     if (pathTargets.isEmpty()) {
       return false;
@@ -394,8 +400,21 @@ public class DiskUsage extends LoadableActivity {
     }
     extras.addAll(pathTargets.subList(1, pathTargets.size()));
 
-    Intent chooser = Intent.createChooser(pathTargets.get(0),
-        getString(R.string.title_choose_file_manager));
+    Intent chooser;
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP_MR1) {
+      // Ask the system to tell FolderChoiceReceiver which app gets picked.
+      int flags = PendingIntent.FLAG_UPDATE_CURRENT;
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        flags |= PendingIntent.FLAG_MUTABLE;  // system adds EXTRA_CHOSEN_COMPONENT
+      }
+      PendingIntent onChosen = PendingIntent.getBroadcast(this, 0,
+          new Intent(this, FolderChoiceReceiver.class), flags);
+      chooser = Intent.createChooser(pathTargets.get(0),
+          getString(R.string.title_choose_file_manager), onChosen.getIntentSender());
+    } else {
+      chooser = Intent.createChooser(pathTargets.get(0),
+          getString(R.string.title_choose_file_manager));
+    }
     if (!extras.isEmpty()) {
       chooser.putExtra(Intent.EXTRA_INITIAL_INTENTS, extras.toArray(new Parcelable[0]));
     }
@@ -406,6 +425,61 @@ public class DiskUsage extends LoadableActivity {
       Timber.w(e, "Folder chooser failed: %s", folder);
       return false;
     }
+  }
+
+  private static Uri folderPathUri(File folder) {
+    return Uri.parse("folder://" + Uri.encode(folder.getAbsolutePath(), "/"));
+  }
+
+  /**
+   * Opens the folder in the app remembered by FolderChoiceReceiver, using
+   * whichever folder format that app actually registered for. Forgets the
+   * choice if the app is gone or no longer handles folders.
+   */
+  private boolean openRememberedFolderApp(File folder, Uri documentUri) {
+    SharedPreferences prefs =
+        getSharedPreferences(FolderChoiceReceiver.PREFS, MODE_PRIVATE);
+    String flat = prefs.getString(FolderChoiceReceiver.PREF_FOLDER_APP, null);
+    if (flat == null) {
+      return false;
+    }
+    ComponentName chosen = ComponentName.unflattenFromString(flat);
+    if (chosen != null) {
+      List<Intent> formats = new ArrayList<>();
+      formats.add(new Intent(Intent.ACTION_VIEW, folderPathUri(folder)));
+      if (documentUri != null) {
+        Intent docs = new Intent(Intent.ACTION_VIEW);
+        docs.setDataAndType(documentUri, DocumentsContract.Document.MIME_TYPE_DIR);
+        formats.add(docs);
+      }
+      PackageManager pm = getPackageManager();
+      for (Intent format : formats) {
+        // Only use a format the app's intent filters really accept; an
+        // explicit intent would otherwise launch it with data it can't read.
+        for (ResolveInfo ri : pm.queryIntentActivities(format, PackageManager.MATCH_DEFAULT_ONLY)) {
+          ActivityInfo ai = ri.activityInfo;
+          if (ai != null && ai.packageName.equals(chosen.getPackageName())
+              && ai.name.equals(chosen.getClassName())) {
+            format.setComponent(chosen);
+            try {
+              startActivity(format);
+              return true;
+            } catch (Exception e) {
+              Timber.w(e, "Remembered folder app failed: %s", chosen);
+            }
+          }
+        }
+      }
+    }
+    prefs.edit().remove(FolderChoiceReceiver.PREF_FOLDER_APP).apply();
+    return false;
+  }
+
+  /** Forgets the remembered folder app (menu: "Choose folder app again"). */
+  public void resetFolderApp() {
+    getSharedPreferences(FolderChoiceReceiver.PREFS, MODE_PRIVATE)
+        .edit().remove(FolderChoiceReceiver.PREF_FOLDER_APP).apply();
+    ToastKt.toast(R.string.folder_app_reset);
   }
 
   /** One explicit intent per app (first matching activity) that handles [base]. */
