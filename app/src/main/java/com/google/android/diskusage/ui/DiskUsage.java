@@ -22,10 +22,14 @@ package com.google.android.diskusage.ui;
 import android.app.ActivityManager;
 import android.app.AlertDialog;
 import android.content.ActivityNotFoundException;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.pm.PackageManager.NameNotFoundException;
+import android.content.pm.ActivityInfo;
+import android.content.pm.ResolveInfo;
+import android.os.Parcelable;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -73,6 +77,9 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 import splitties.toast.ToastKt;
 
@@ -283,6 +290,11 @@ public class DiskUsage extends LoadableActivity {
 
     if (file.isDirectory()) {
       Uri documentUri = buildDocumentUri(file);
+      // If a path-based file manager (e.g. MiXplorer) is installed, offer it
+      // alongside the Files app in one chooser.
+      if (openFolderChooser(file, documentUri)) {
+        return;
+      }
       if (documentUri != null) {
         // 1st choice: open the folder in the Files app in normal browse mode
         // (rename/move/delete available). No FLAG_GRANT_READ_URI_PERMISSION:
@@ -347,6 +359,69 @@ public class DiskUsage extends LoadableActivity {
       }
     }
     ToastKt.toast(R.string.no_viewer_found);
+  }
+
+  /**
+   * Shows one chooser combining two kinds of folder handlers:
+   *  - file managers registered for folder:///absolute/path (MiXplorer, ...)
+   *  - apps that view the externalstorage documents URI (the Files app, ...)
+   *
+   * The folder: intent is deliberately the chooser's main target. The system
+   * grant-checks the chooser's target URI when we launch it, and a documents
+   * URI there throws SecurityException (that is what crashed v5.2's first
+   * folder-browser attempt). Non-content: URIs are never grant-checked, and
+   * EXTRA_INITIAL_INTENTS are launched by the chooser without grant flags.
+   *
+   * Returns false when no folder:-path handler is installed, so the caller
+   * falls back to the plain documents-URI view.
+   */
+  private boolean openFolderChooser(File folder, Uri documentUri) {
+    PackageManager pm = getPackageManager();
+    Set<String> seenPackages = new HashSet<>();
+
+    Intent pathIntent = new Intent(Intent.ACTION_VIEW,
+        Uri.parse("folder://" + Uri.encode(folder.getAbsolutePath(), "/")));
+    List<Intent> pathTargets = explicitTargets(pm, pathIntent, seenPackages);
+    if (pathTargets.isEmpty()) {
+      return false;
+    }
+
+    List<Intent> extras = new ArrayList<>();
+    if (documentUri != null) {
+      Intent docs = new Intent(Intent.ACTION_VIEW);
+      docs.setDataAndType(documentUri, DocumentsContract.Document.MIME_TYPE_DIR);
+      extras.addAll(explicitTargets(pm, docs, seenPackages));
+    }
+    extras.addAll(pathTargets.subList(1, pathTargets.size()));
+
+    Intent chooser = Intent.createChooser(pathTargets.get(0),
+        getString(R.string.title_choose_file_manager));
+    if (!extras.isEmpty()) {
+      chooser.putExtra(Intent.EXTRA_INITIAL_INTENTS, extras.toArray(new Parcelable[0]));
+    }
+    try {
+      startActivity(chooser);
+      return true;
+    } catch (Exception e) {
+      Timber.w(e, "Folder chooser failed: %s", folder);
+      return false;
+    }
+  }
+
+  /** One explicit intent per app (first matching activity) that handles [base]. */
+  private static List<Intent> explicitTargets(PackageManager pm, Intent base,
+                                              Set<String> seenPackages) {
+    List<Intent> result = new ArrayList<>();
+    for (ResolveInfo ri : pm.queryIntentActivities(base, PackageManager.MATCH_DEFAULT_ONLY)) {
+      ActivityInfo ai = ri.activityInfo;
+      if (ai == null || !ai.exported || !seenPackages.add(ai.packageName)) {
+        continue;
+      }
+      Intent target = new Intent(base);
+      target.setComponent(new ComponentName(ai.packageName, ai.name));
+      result.add(target);
+    }
+    return result;
   }
 
   /**
