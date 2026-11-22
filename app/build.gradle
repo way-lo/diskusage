@@ -31,7 +31,23 @@ android {
         }
     }
 
+    // Fixed debug key, committed on purpose: CI runners are fresh machines and
+    // would otherwise generate a new random debug key every build, so each APK
+    // had a different signature and couldn't install over the previous one.
+    // This is a throwaway debug key, not a secret.
+    signingConfigs {
+        debug {
+            storeFile file('debug.keystore')
+            storePassword 'android'
+            keyAlias 'androiddebugkey'
+            keyPassword 'android'
+        }
+    }
+
     buildTypes {
+        debug {
+            signingConfig signingConfigs.debug
+        }
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.txt'
