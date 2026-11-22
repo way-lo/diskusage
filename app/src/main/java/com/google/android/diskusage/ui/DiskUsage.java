@@ -282,14 +282,30 @@ public class DiskUsage extends LoadableActivity {
     File file = new File(path);
 
     if (file.isDirectory()) {
-      try {
-        Intent folderIntent = buildDocumentTreeViewIntent(file);
-        if (folderIntent != null) {
-          startActivity(folderIntent);
+      Uri documentUri = buildDocumentUri(file);
+      if (documentUri != null) {
+        // 1st choice: open the folder in the Files app in normal browse mode
+        // (rename/move/delete available). No FLAG_GRANT_READ_URI_PERMISSION:
+        // the documents provider manages its own access, and asking to grant
+        // a URI we don't own is what throws SecurityException.
+        Intent browse = new Intent(Intent.ACTION_VIEW);
+        browse.setDataAndType(documentUri, DocumentsContract.Document.MIME_TYPE_DIR);
+        try {
+          startActivity(browse);
           return;
+        } catch (Exception e) {
+          Timber.w(e, "Browse-mode folder view failed, falling back to picker: %s", path);
         }
-      } catch (Exception e) {
-        Timber.e(e, "Failed to open folder externally: %s", path);
+
+        // 2nd choice: the read-only document picker, opened at the folder.
+        Intent picker = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
+        picker.putExtra(DocumentsContract.EXTRA_INITIAL_URI, documentUri);
+        try {
+          startActivity(picker);
+          return;
+        } catch (Exception e) {
+          Timber.e(e, "Folder picker failed: %s", path);
+        }
       }
       ToastKt.toast(R.string.no_viewer_found);
       return;
@@ -334,22 +350,12 @@ public class DiskUsage extends LoadableActivity {
   }
 
   /**
-   * Builds an ACTION_OPEN_DOCUMENT_TREE intent pre-pointed at the given
-   * directory via EXTRA_INITIAL_URI.
-   *
-   * Note: we deliberately do NOT put the document URI in the intent's data.
-   * Android checks intent data URIs against the caller's URI grants at
-   * startActivity() time, and MANAGE_EXTERNAL_STORAGE grants raw filesystem
-   * access but no grant on com.android.externalstorage.documents content URIs
-   * — so passing it as data throws SecurityException. EXTRA_INITIAL_URI is an
-   * extra, which is not permission-checked, and is the supported way to open
-   * a picker at a specific folder.
-   *
-   * Returns null if we can't confidently resolve the volume/relative path
-   * (e.g. below API 30, where StorageVolume.getDirectory() isn't available),
-   * in which case the caller should fall back to the "no viewer" message.
+   * Builds the system documents-provider URI for a folder, e.g.
+   * content://com.android.externalstorage.documents/document/primary:Download.
+   * Returns null if the volume or relative path can't be resolved (or below
+   * API 30, where StorageVolume.getDirectory() isn't available).
    */
-  private Intent buildDocumentTreeViewIntent(File file) {
+  private Uri buildDocumentUri(File file) {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
       // StorageVolume.getDirectory() needed below is only public from API 30+.
       return null;
@@ -378,11 +384,7 @@ public class DiskUsage extends LoadableActivity {
     }
 
     String docId = relativePath.isEmpty() ? (volumeId + ":") : (volumeId + ":" + relativePath);
-    Uri treeUri = DocumentsContract.buildDocumentUri("com.android.externalstorage.documents", docId);
-
-    Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
-    intent.putExtra(DocumentsContract.EXTRA_INITIAL_URI, treeUri);
-    return intent;
+    return DocumentsContract.buildDocumentUri("com.android.externalstorage.documents", docId);
   }
 
   public void rescan() {
