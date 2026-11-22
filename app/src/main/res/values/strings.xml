@@ -32,9 +32,9 @@
 <string name="button_text_in_oi_file_manager">Return to DiskUsage</string>
 <string name="no_viewer_found">No viewer found</string>
 <string name="title_choose_file_manager">Open folder with</string>
-<string name="folder_app_remembered">Saved: %s</string>
+<string name="folder_app_remembered">Folders will now open in %s. To pick again, use “Choose folder app again” in the menu.</string>
 <string name="menu_reset_folder_app">Choose folder app again</string>
-<string name="folder_app_reset">Folder app reset</string>
+<string name="folder_app_reset">Next time you open a folder, DiskUsage will ask which app to use.</string>
 <string name="ask_to_delete_directory">Delete %s directory?</string>
 <string name="ask_to_delete_file">Delete %s file?</string>
 <string name="out_of_memory">Not enough memory!</string>
